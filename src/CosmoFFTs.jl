@@ -16,7 +16,7 @@ const WISDOM_FILE = Ref{String}("")
 
 export FFTPlanSpec, FourierArrayInfo, allocate_fields,
        make_plan, forwardFT!, inverseFT!,
-       default_backend, default_threads, set_backend!, set_threads!
+       default_backend, default_threads, set_backend!, set_threads!, reinitialize!
 
 default_backend() = DEFAULT_BACKEND[]
 default_threads() = DEFAULT_THREADS[]
@@ -29,6 +29,24 @@ end
 function set_threads!(nthreads::Integer)
     DEFAULT_THREADS[] = Int(nthreads)
     return DEFAULT_THREADS[]
+end
+
+"""
+    reinitialize!()
+
+Reinitialize the CosmoFFTs backend. Call this after changing backend or threads
+settings with `set_backend!()` or `set_threads!()` to apply the changes.
+
+# Example
+```julia
+using CosmoFFTs
+set_backend!(:pencil_mpi)
+reinitialize!()  # Load the PencilFFTs MPI backend
+```
+"""
+function reinitialize!()
+    __init__()
+    return nothing
 end
 
 function make_plan(spec::BackendDispatch.FFTPlanSpec)
