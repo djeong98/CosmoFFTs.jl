@@ -1,0 +1,27 @@
+# Julia
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+/Manifest.toml
+/deps/deps.jl
+
+# Build artifacts
+/docs/build/
+/docs/site/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# FFTW wisdom (optional - remove this line if you want to commit wisdom files)
+FFTWwisdom/
+
+# Temporary files
+*.tmp
