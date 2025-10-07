@@ -39,8 +39,9 @@ function __init__()
     elseif backend == :pencil_mpi
         @info "Initializing PencilFFTs (MPI) backend"
         try
-            @eval using MPI
-            @eval using PencilFFTs
+            # Use Base.require instead of @eval to avoid precompilation issues
+            Base.require(Main, :MPI)
+            Base.require(Main, :PencilFFTs)
         catch e
             @error "Failed to load MPI/PencilFFTs for pencil_mpi backend" exception=(e, catch_backtrace())
             rethrow()
