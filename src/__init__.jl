@@ -60,7 +60,7 @@ function __init__()
         FFTW.set_num_threads(DEFAULT_THREADS[])
         load_wisdom(WISDOM_FILE[])
         try
-            if !MPI.Initialized()
+            if !Base.invokelatest(MPI.Initialized)
                 MPI.Init()
                 atexit(() -> (MPI.Initialized() && !MPI.Finalized()) && MPI.Finalize())
             end
