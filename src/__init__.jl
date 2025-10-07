@@ -61,10 +61,10 @@ function __init__()
         load_wisdom(WISDOM_FILE[])
         try
             if !Base.invokelatest(MPI.Initialized)
-                MPI.Init()
-                atexit(() -> (MPI.Initialized() && !MPI.Finalized()) && MPI.Finalize())
+                Base.invokelatest(MPI.Init)
+                atexit(() -> (Base.invokelatest(MPI.Initialized) && !Base.invokelatest(MPI.Finalized)) && Base.invokelatest(MPI.Finalize))
             end
-            @info "PencilFFTs backend initialized" ranks=MPI.Comm_size(MPI.COMM_WORLD)
+            @info "PencilFFTs backend initialized" ranks=Base.invokelatest(MPI.Comm_size, MPI.COMM_WORLD)
         catch e
             @warn "MPI initialization failed" exception=(e, catch_backtrace())
         end
