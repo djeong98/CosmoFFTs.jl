@@ -10,6 +10,11 @@ using .Wisdom: wisdom_filename, load_wisdom, save_wisdom, reset_wisdom
 include(joinpath(@__DIR__, "BackendDispatch.jl"))
 using .BackendDispatch: FFTPlanSpec, FourierArrayInfo, allocate_fields
 
+# Check if MPI and PencilFFTs are available for the MPI backend
+# These will be loaded lazily only when needed
+const HAVE_MPI = Ref(false)
+const HAVE_PENCILFFT = Ref(false)
+
 const DEFAULT_BACKEND = Ref(:fftw_single)
 const DEFAULT_THREADS = Ref(1)
 const WISDOM_FILE = Ref{String}("")
@@ -67,23 +72,21 @@ function inverseFT!(out, plan, inp)
     return BackendDispatch.inverseFT!(out, plan, inp; backend=DEFAULT_BACKEND[])
 end
 
-function load_backend(modsyms, filepath::String; force::Bool=false)
-    for sym in (modsyms isa Tuple || modsyms isa Vector ? modsyms : (modsyms,))
-        @eval using $(sym)
-    end
+function load_backend_module(filepath::String)
+    # Load backend module at runtime (NOT during precompilation)
+    # This should only be called from __init__() after checking we're not precompiling
     fullpath = joinpath(@__DIR__, filepath)
     modname = Symbol(basename(filepath)[1:end-3])
-    if force || !isdefined(BackendDispatch, modname)
+
+    if !isdefined(BackendDispatch, modname)
+        # Direct include works fine at runtime, just not during precompilation
         Base.include(BackendDispatch, fullpath)
-        # After including, the module should be defined in BackendDispatch
-        # Make it accessible via qualified names by evaluating in BackendDispatch context
-        if isdefined(BackendDispatch, modname)
-            Core.eval(BackendDispatch, :(using .$modname))
-        else
+
+        if !isdefined(BackendDispatch, modname)
             error("Failed to load backend module $modname from $filepath")
         end
     end
-    return nothing
+    return modname
 end
 
 include(joinpath(@__DIR__, "__init__.jl"))

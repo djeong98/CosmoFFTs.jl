@@ -198,7 +198,7 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
         # --- Local dimensions (complex space)
         local_dims_k = size_out(plan)
         pen_k = pencil_out(plan)
-        i1_range, i2_range, i3_range = range_local(pen_k, (1, 1, 1))
+        i1_range, i2_range, i3_range = range_local(pen_k)
 
         # Local Fourier 1D arrays
         ak1_loc = ak1[i1_range]  # Local k1 wavenumbers
@@ -211,7 +211,7 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
         # --- Local real-space dimensions
         pen_x = pencil_in(plan)
         local_dims_x = size_in(plan)
-        ix1_range, ix2_range, ix3_range = range_local(pen_x, (1, 1, 1))
+        ix1_range, ix2_range, ix3_range = range_local(pen_x)
 
         aix1_loc = aix1[ix1_range]
         aix2_loc = aix2[ix2_range]

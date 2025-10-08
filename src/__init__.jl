@@ -1,4 +1,8 @@
 function __init__()
+    # Skip backend initialization during precompilation
+    # This avoids Julia 1.11+ errors about eval into closed modules
+    ccall(:jl_generating_output, Cint, ()) == 1 && return nothing
+
     global_logger(ConsoleLogger(stderr, Logging.Info))
 
     backend_env = get(ENV, "COSMOFFTS_BACKEND", nothing)
@@ -38,17 +42,32 @@ function __init__()
         atexit(() -> save_wisdom(WISDOM_FILE[]))
     elseif backend == :pencil_mpi
         @info "Initializing PencilFFTs (MPI) backend"
-        try
-            # Use Base.require instead of @eval to avoid precompilation issues
-            Base.require(Main, :MPI)
-            Base.require(Main, :PencilFFTs)
-        catch e
-            @error "Failed to load MPI/PencilFFTs for pencil_mpi backend" exception=(e, catch_backtrace())
-            rethrow()
+
+        # Load MPI and PencilFFTs at runtime (not during precompilation)
+        if !HAVE_MPI[]
+            try
+                Base.require(Main, :MPI)
+                HAVE_MPI[] = true
+            catch e
+                @error "Failed to load MPI for pencil_mpi backend" exception=(e, catch_backtrace())
+                rethrow()
+            end
         end
 
-        load_backend((:MPI, :PencilFFTs), "Backends/PencilFFTs_MPI.jl"; force=true)
+        if !HAVE_PENCILFFT[]
+            try
+                Base.require(Main, :PencilFFTs)
+                HAVE_PENCILFFT[] = true
+            catch e
+                @error "Failed to load PencilFFTs for pencil_mpi backend" exception=(e, catch_backtrace())
+                rethrow()
+            end
+        end
 
+        # Load the backend module at runtime (safe now that we're not precompiling)
+        load_backend_module("Backends/PencilFFTs_MPI.jl")
+
+        # Import PencilFFTs functions into BackendDispatch
         Core.eval(BackendDispatch, quote
             import PencilFFTs: allocate_input, allocate_output, pencil, range_local
             size_in(plan) = size(allocate_input(plan.plan))
@@ -60,11 +79,16 @@ function __init__()
         FFTW.set_num_threads(DEFAULT_THREADS[])
         load_wisdom(WISDOM_FILE[])
         try
-            if !Base.invokelatest(MPI.Initialized)
-                Base.invokelatest(MPI.Init)
-                atexit(() -> (Base.invokelatest(MPI.Initialized) && !Base.invokelatest(MPI.Finalized)) && Base.invokelatest(MPI.Finalize))
+            MPI_mod = Base.require(Main, :MPI)
+            if !Base.invokelatest(getfield(MPI_mod, :Initialized))
+                Base.invokelatest(getfield(MPI_mod, :Init))
+                atexit(() -> begin
+                    if Base.invokelatest(getfield(MPI_mod, :Initialized)) && !Base.invokelatest(getfield(MPI_mod, :Finalized))
+                        Base.invokelatest(getfield(MPI_mod, :Finalize))
+                    end
+                end)
             end
-            @info "PencilFFTs backend initialized" ranks=Base.invokelatest(MPI.Comm_size, MPI.COMM_WORLD)
+            @info "PencilFFTs backend initialized" ranks=Base.invokelatest(getfield(MPI_mod, :Comm_size), getfield(MPI_mod, :COMM_WORLD))
         catch e
             @warn "MPI initialization failed" exception=(e, catch_backtrace())
         end
