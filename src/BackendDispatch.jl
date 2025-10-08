@@ -221,16 +221,15 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
         ax3_loc = ax3[ix3_range]
 
         # --- Construct local k-grids and k-magnitude
-        local_n1, local_n2, local_n3 = local_dims_k
-        vk1 = ones(Float64, local_n1, 1, 1)
-        vk2 = ones(Float64, 1, local_n2, 1)
-        vk3 = ones(Float64, 1, 1, local_n3)
-        vk1 .*= ak1_loc
-        @view(vk2[1, :, 1]) .= ak2_loc
-        @view(vk3[1, 1, :]) .= ak3_loc
-        
-        # local k-magnitude array
-        akmag = Array{Float64}(undef, local_n1, local_n2, local_n3)
+        # Use the actual lengths of the local k-arrays, not local_dims_k
+        # because the pencil decomposition may split along any dimension
+        len1, len2, len3 = length(ak1_loc), length(ak2_loc), length(ak3_loc)
+        vk1 = reshape(ak1_loc, len1, 1, 1)
+        vk2 = reshape(ak2_loc, 1, len2, 1)
+        vk3 = reshape(ak3_loc, 1, 1, len3)
+
+        # local k-magnitude array (use actual local dimensions)
+        akmag = Array{Float64}(undef, len1, len2, len3)
         @inbounds @. akmag = hypot(vk1, vk2, vk3)
 
         return FourierArrayInfo(
