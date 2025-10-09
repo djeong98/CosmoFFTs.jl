@@ -117,10 +117,10 @@ struct FourierArrayInfo
     aix1::Vector{Int}
     aix2::Vector{Int}
     aix3::Vector{Int}
-    vk1::Array{Float64,3}
-    vk2::Array{Float64,3}
-    vk3::Array{Float64,3}
-    akmag::Array{Float64,3}
+    vk1::AbstractArray{Float64,3}
+    vk2::AbstractArray{Float64,3}
+    vk3::AbstractArray{Float64,3}
+    akmag::AbstractArray{Float64,3}
 end
 # -----------------------------------------------------------------------------
 function calcWavenumbers!(ak::AbstractVector{T}, kF::T, n::Int, cn::Int) where {T<:Real}
@@ -254,12 +254,8 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
             akmag_pa[i,j,k] = hypot(k1_vals[i], k2_vals[j], k3_vals[k])
         end
 
-        # Extract parent arrays (now in correct memory order)
-        vk1 = parent(vk1_pa)
-        vk2 = parent(vk2_pa)
-        vk3 = parent(vk3_pa)
-        akmag = parent(akmag_pa)
-
+        # Keep as PencilArrays so that indexing works correctly with logical indices
+        # When used in broadcasting or indexing with deltak (PencilArray), dimensions will match
         return FourierArrayInfo(
             n1, n2, n3, Ntotal, cn1, cn2, cn3,
             L1, L2, L3, Volume,
@@ -269,8 +265,8 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
             xH1, xH2, xH3,
             ax1_loc, ax2_loc, ax3_loc,
             aix1_loc, aix2_loc, aix3_loc,
-            vk1, vk2, vk3,
-            akmag
+            vk1_pa, vk2_pa, vk3_pa,
+            akmag_pa
         )
     end
     
