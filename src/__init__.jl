@@ -92,7 +92,18 @@ function __init__()
         catch e
             @warn "MPI initialization failed" exception=(e, catch_backtrace())
         end
-        atexit(() -> save_wisdom(WISDOM_FILE[]))
+        # Only rank 0 should save wisdom to avoid file conflicts
+        atexit(() -> begin
+            try
+                MPI_mod = Base.require(Main, :MPI)
+                rank = Base.invokelatest(getfield(MPI_mod, :Comm_rank), getfield(MPI_mod, :COMM_WORLD))
+                if rank == 0
+                    save_wisdom(WISDOM_FILE[])
+                end
+            catch e
+                @debug "Could not save wisdom" exception=(e, catch_backtrace())
+            end
+        end)
     else
         @warn "Unknown backend $(backend); defaulting to :fftw_single"
         DEFAULT_BACKEND[] = :fftw_single
