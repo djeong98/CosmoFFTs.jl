@@ -195,14 +195,19 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
     if spec.backend == :pencil_mpi
         @assert plan !== nothing "PencilFFT backend requires a valid plan"
 
-        # --- Local dimensions (complex space)
+        # --- Allocate a temporary k-space array to get the correct memory layout
+        # PencilArrays may have dimension permutations, so we need to match that
+        temp_k = allocate_output(plan.plan)
+        mem_dims = size(parent(temp_k))  # Memory-order dimensions
+
+        # --- Local dimensions (complex space) in logical order
         local_dims_k = size_out(plan)
         pen_k = pencil_out(plan)
         i1_range, i2_range, i3_range = range_local(pen_k)
 
-        # Local Fourier 1D arrays
+        # Local Fourier 1D arrays in logical order
         ak1_loc = ak1[i1_range]  # Local k1 wavenumbers
-        ak2_loc = ak2[i2_range]  # Local k2 wavenumbers  
+        ak2_loc = ak2[i2_range]  # Local k2 wavenumbers
         ak3_loc = ak3[i3_range]  # Local k3 wavenumbers
         aik1_loc = aik1[i1_range]  # Local k1 indices
         aik2_loc = aik2[i2_range]  # Local k2 indices
@@ -220,17 +225,52 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
         ax2_loc = ax2[ix2_range]
         ax3_loc = ax3[ix3_range]
 
-        # --- Construct local k-grids and k-magnitude
-        # Use the actual lengths of the local k-arrays, not local_dims_k
-        # because the pencil decomposition may split along any dimension
-        len1, len2, len3 = length(ak1_loc), length(ak2_loc), length(ak3_loc)
-        vk1 = reshape(ak1_loc, len1, 1, 1)
-        vk2 = reshape(ak2_loc, 1, len2, 1)
-        vk3 = reshape(ak3_loc, 1, 1, len3)
+        # --- Construct local k-grids and k-magnitude in MEMORY ORDER
+        # This matches the layout of parent(PencilArray)
+        # Build k-arrays in memory order to match parent(temp_k)
+        parent_k = parent(temp_k)
+        vk1 = similar(parent_k, Float64)
+        vk2 = similar(parent_k, Float64)
+        vk3 = similar(parent_k, Float64)
+        akmag = similar(parent_k, Float64)
 
-        # local k-magnitude array (use actual local dimensions)
-        akmag = Array{Float64}(undef, len1, len2, len3)
-        @inbounds @. akmag = hypot(vk1, vk2, vk3)
+        # Fill in k-values using the logical indices but in memory order
+        # We need to iterate over the parent array and fill with correct k values
+        for idx in CartesianIndices(parent_k)
+            # Get logical indices from the PencilArray
+            logical_idx = temp_k[idx]  # This handles permutation
+            # But we actually need the index mapping...
+            # Use eachindex instead
+        end
+
+        # Actually, simpler approach: operate on the PencilArray directly
+        # and let broadcasting handle the layout
+        temp_k_real = similar(temp_k, Float64)  # Float64 version
+
+        # Create k-grids as PencilArrays (same layout as temp_k)
+        vk1 = similar(temp_k_real)
+        vk2 = similar(temp_k_real)
+        vk3 = similar(temp_k_real)
+        akmag = similar(temp_k_real)
+
+        # Fill with k-values in logical coordinates
+        # PencilArrays handle the index permutation internally
+        for (i_mem, i_log) in enumerate(i1_range)
+            for (j_mem, j_log) in enumerate(i2_range)
+                for (k_mem, k_log) in enumerate(i3_range)
+                    vk1[i_mem, j_mem, k_mem] = ak1[i_log]
+                    vk2[i_mem, j_mem, k_mem] = ak2[j_log]
+                    vk3[i_mem, j_mem, k_mem] = ak3[k_log]
+                    akmag[i_mem, j_mem, k_mem] = hypot(ak1[i_log], ak2[j_log], ak3[k_log])
+                end
+            end
+        end
+
+        # Convert to parent arrays to store as regular Arrays
+        vk1 = parent(vk1)
+        vk2 = parent(vk2)
+        vk3 = parent(vk3)
+        akmag = parent(akmag)
 
         return FourierArrayInfo(
             n1, n2, n3, Ntotal, cn1, cn2, cn3,
