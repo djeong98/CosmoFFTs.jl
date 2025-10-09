@@ -225,16 +225,8 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
         ax2_loc = ax2[ix2_range]
         ax3_loc = ax3[ix3_range]
 
-        # --- Construct local k-grids and k-magnitude in MEMORY ORDER
-        # Work directly with parent arrays to match memory layout
-        parent_k = parent(temp_k)
-        vk1 = similar(parent_k, Float64)
-        vk2 = similar(parent_k, Float64)
-        vk3 = similar(parent_k, Float64)
-        akmag = similar(parent_k, Float64)
-
-        # Fill using explicit loops - straightforward and always works
-        # Create 1D k-value arrays
+        # --- Construct local k-grids and k-magnitude as PencilArrays
+        # Create 1D k-value arrays for this rank's local domain
         k1_vals = [ak1[i] for i in i1_range]
         k2_vals = [ak2[j] for j in i2_range]
         k3_vals = [ak3[k] for k in i3_range]
