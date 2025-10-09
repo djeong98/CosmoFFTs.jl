@@ -233,30 +233,26 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
         vk3 = similar(parent_k, Float64)
         akmag = similar(parent_k, Float64)
 
-        # Fill using broadcasting - let Julia handle the layout!
+        # Fill using explicit loops - straightforward and always works
         # Create 1D k-value arrays
         k1_vals = [ak1[i] for i in i1_range]
         k2_vals = [ak2[j] for j in i2_range]
         k3_vals = [ak3[k] for k in i3_range]
 
-        # Reshape to broadcast along correct dimensions in LOGICAL order
-        # temp_k is a PencilArray with logical size (43, 256, 256)
-        vk1_logical = reshape(k1_vals, length(k1_vals), 1, 1)
-        vk2_logical = reshape(k2_vals, 1, length(k2_vals), 1)
-        vk3_logical = reshape(k3_vals, 1, 1, length(k3_vals))
-
-        # Broadcast into temporary PencilArrays (which handle permutation internally)
+        # Create temporary PencilArrays
         temp_k_real = similar(temp_k, Float64)
         vk1_pa = similar(temp_k_real)
         vk2_pa = similar(temp_k_real)
         vk3_pa = similar(temp_k_real)
         akmag_pa = similar(temp_k_real)
 
-        # Broadcast in logical space - PencilArray handles memory layout
-        vk1_pa .= vk1_logical
-        vk2_pa .= vk2_logical
-        vk3_pa .= vk3_logical
-        @. akmag_pa = hypot(vk1_logical, vk2_logical, vk3_logical)
+        # Fill in logical index space - PencilArray handles the permutation
+        for k in 1:length(k3_vals), j in 1:length(k2_vals), i in 1:length(k1_vals)
+            vk1_pa[i,j,k] = k1_vals[i]
+            vk2_pa[i,j,k] = k2_vals[j]
+            vk3_pa[i,j,k] = k3_vals[k]
+            akmag_pa[i,j,k] = hypot(k1_vals[i], k2_vals[j], k3_vals[k])
+        end
 
         # Extract parent arrays (now in correct memory order)
         vk1 = parent(vk1_pa)
