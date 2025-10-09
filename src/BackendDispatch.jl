@@ -233,25 +233,36 @@ function FourierArrayInfo(spec::FFTPlanSpec;plan=nothing)
         vk3 = similar(parent_k, Float64)
         akmag = similar(parent_k, Float64)
 
-        # Fill the parent arrays directly using CartesianIndices
-        # The parent array is in memory order (potentially permuted)
-        # We iterate over memory indices and map to logical k-values
-        for I in CartesianIndices(parent_k)
-            # Map memory index to logical index via the PencilArray
-            # By indexing temp_k in logical order, we get the right mapping
-            i_mem, j_mem, k_mem = Tuple(I)
+        # Fill using broadcasting - let Julia handle the layout!
+        # Create 1D k-value arrays
+        k1_vals = [ak1[i] for i in i1_range]
+        k2_vals = [ak2[j] for j in i2_range]
+        k3_vals = [ak3[k] for k in i3_range]
 
-            # The logical indices correspond to the position in the local ranges
-            # Since parent has same size as the local data, we can use 1:length
-            i_log = i1_range[i_mem]
-            j_log = i2_range[j_mem]
-            k_log = i3_range[k_mem]
+        # Reshape to broadcast along correct dimensions in LOGICAL order
+        # temp_k is a PencilArray with logical size (43, 256, 256)
+        vk1_logical = reshape(k1_vals, length(k1_vals), 1, 1)
+        vk2_logical = reshape(k2_vals, 1, length(k2_vals), 1)
+        vk3_logical = reshape(k3_vals, 1, 1, length(k3_vals))
 
-            vk1[I] = ak1[i_log]
-            vk2[I] = ak2[j_log]
-            vk3[I] = ak3[k_log]
-            akmag[I] = hypot(ak1[i_log], ak2[j_log], ak3[k_log])
-        end
+        # Broadcast into temporary PencilArrays (which handle permutation internally)
+        temp_k_real = similar(temp_k, Float64)
+        vk1_pa = similar(temp_k_real)
+        vk2_pa = similar(temp_k_real)
+        vk3_pa = similar(temp_k_real)
+        akmag_pa = similar(temp_k_real)
+
+        # Broadcast in logical space - PencilArray handles memory layout
+        vk1_pa .= vk1_logical
+        vk2_pa .= vk2_logical
+        vk3_pa .= vk3_logical
+        @. akmag_pa = hypot(vk1_logical, vk2_logical, vk3_logical)
+
+        # Extract parent arrays (now in correct memory order)
+        vk1 = parent(vk1_pa)
+        vk2 = parent(vk2_pa)
+        vk3 = parent(vk3_pa)
+        akmag = parent(akmag_pa)
 
         return FourierArrayInfo(
             n1, n2, n3, Ntotal, cn1, cn2, cn3,
